@@ -18,7 +18,7 @@ small_window = 1; % Open a small window only
 if strcmp(experiment, 'connectivity')
         sequences = load('new_connectivity_sequences.mat');
 elseif strcmp(experiment, 'immuno')
-    sequences = load('immuno_sequences.mat');
+    sequences = load('immuno_sequences2.mat');
 end
 sequences = sequences.sequences;
 sequence = sequences{subject}{phase};
@@ -227,8 +227,8 @@ Screen('TextStyle', p.ptb.w, 1);
         elseif strcmp('NR', p.sequence.block_type)
             % A block of the Nassar prediction task.
             all_rewards.weight = 0.6;
-            if blocks_completed == 0
-                %explain_nassar_block(p)
+            if blocks_completed > 0
+                p = TakeABreak(p);
             end
             KbQueueStop(p.ptb.device);
             KbQueueRelease(p.ptb.device);
@@ -237,6 +237,10 @@ Screen('TextStyle', p.ptb.w, 1);
                 CalibrateEL;
                 calibrated = true;
             end
+            if blocks_completed == 0
+                explain_nassar_block(p)                
+            end
+            
             [p, abort] = NassarPredictionBlock(p);
         end
 
@@ -467,7 +471,7 @@ lasterr
         all_rewards.money = all_rewards.money+money_earned;
         all_rewards.total_rewards = all_rewards.total_rewards + p.earned_rewards;
 
-        text = RewardText(p.earned_rewards, p.earned_rewards/sum(outcomes), money_earned, all_rewards.money);
+        text = RewardText(p.earned_rewards, p.earned_rewards/length(outcomes), money_earned, all_rewards.money);
         Screen('FillRect',p.ptb.w,p.var.current_bg);
         DrawFormattedText(p.ptb.w, text, 'center', 'center', p.stim.white,[],[],[],2,[]);
         Screen('Flip',p.ptb.w);
@@ -638,7 +642,7 @@ lasterr
 
 
         Screen('FillRect',p.ptb.w,p.var.current_bg);
-        t = Screen('Flip',p.ptb.w);
+        vbl = Screen('Flip',p.ptb.w);
 
 
         KbQueueCreate(p.ptb.device);%, p.ptb.keysOfInterest);%default device.
@@ -668,11 +672,11 @@ lasterr
         upper_bound = mean(abs(p.sequence.sample(2:end) - p.sequence.mu(1:end-1)));
         prediction_errors = nan(size(p.sequence.stim,2));
 
-        Log(p, vbl, 'PRD_LOWER_BOUND', lower_bound, p.phase, p.block);
-        Log(p, vbl, 'PRD_UPPER_BOUND', upper_bound, p.phase, p.block);
+        Log(p, GetSecs(), 'PRD_LOWER_BOUND', lower_bound, p.phase, p.block);
+        Log(p, GetSecs(), 'PRD_UPPER_BOUND', upper_bound, p.phase, p.block);
 
         for trial  = 1:size(p.sequence.stim, 2);
-            Log(p, vbl, 'PRD_TRIAL', trial, p.phase, p.block);
+            Log(p, GetSecs(), 'PRD_TRIAL', trial, p.phase, p.block);
             %Get the variables that Trial function needs.
             stim_id         = p.sequence.stim(trial);
             ISI             = p.sequence.isi(trial);
@@ -1389,7 +1393,7 @@ lasterr
         next_flip = start+p.ptb.slack*2;
         modifier = 0;
         currentup=GetSecs()-0.02;
-        while (current-start) < 20
+        while (current-start) < 60
             [evt, n]   = KbEventGet(p.ptb.device);
             %[keycodes, secs] = KbQueueDump(p);
             if numel(evt)>0
@@ -1458,6 +1462,8 @@ lasterr
         %Screen('TextSize', p.ptb.w,  70);
         %DrawFormattedText(p.ptb.w, text, 'center', h, [128, 128, 128], [],[],[],2,[]);
         Screen('BlendFunction', p.ptb.w, 'GL_SRC_ALPHA', 'GL_ONE_MINUS_SRC_ALPHA');
+        sample = max(1, sample);
+        sample = min(300, sample);
         Screen('DrawTexture',  p.ptb.w, p.stim.sample_textures(sample));
         Screen('BlendFunction', p.ptb.w, 'GL_ONE', 'GL_ZERO');
     end
@@ -1657,6 +1663,57 @@ lasterr
         KbStrokeWait(p.ptb.device);
 
     end
+
+
+    function vbl = explain_nassar_block(p)
+        KbQueueStop(p.ptb.device);
+        KbQueueRelease(p.ptb.device);
+        p = InitEyeLink(p);
+
+        Screen('FillRect',p.ptb.w,p.var.current_bg);
+        vbl = Screen('Flip',p.ptb.w);
+
+        KbQueueCreate(p.ptb.device);%, p.ptb.keysOfInterest);%default device.
+        KbQueueStart(p.ptb.device)
+        KbQueueFlush(p.ptb.device)
+
+        %Screen('DrawTexture', p.ptb.w, instructions, [], p.ptb.rect)
+        text = ['Im nächsten Block müssen Sie in einer Reihe von Zahlen jeweils die nächste Vorraussagen.\n\n',...
+                'In jedem Durchgang wird in der Mitte des Bildschirmes eine Zahl dargestellt.\n',...
+                'Nachdem Sie ihre Vorraussage gemacht haben, drücken Sie die Leertaste um die nächste Zahl der Reihe\n',...
+                'anzeigen zu lassen. Daraufhin erscheint die nächste Zahl der Reihe für eine Weile.\n'...
+                'Anschließend wird wieder die alte Vorraussage angezeigt und Sie stellen \n',...
+                'Ihre nächste Vorraussage ein\n\n',...
+                'Mit den Tasten x und m können Sie ihre Vorraussage größer oder kleiner machen.\n\n',...
+                'Versuchen Sie es einmal!'];
+        DrawFormattedText(p.ptb.w, text, 'center', round(p.ptb.rect(4)*.1), p.stim.white,[],[],[],2,[]);
+        vbl = Screen('Flip', p.ptb.w);
+        KbStrokeWait(p.ptb.device);
+                    
+        [TimeEndStim, p, abort, prediction] = PredictionTrial(p, GetSecs+1, 100, 2, 0.1, 95, 100);
+        [TimeEndStim, p, abort, prediction] = PredictionTrial(p, GetSecs+1, 110, 2, 0.1, prediction, 104);
+                %Screen('DrawTexture', p.ptb.w, instructions, [], p.ptb.rect)
+        text = ['In diesem Beispiel enthielt die Zahlenreihe die Zahlen 100 und 110.\n\n',...
+                'Sie haben wahrscheinlich bemerkt, dass das Fixationskreuz die Ausrichtung ändert\n',...
+                'wenn Sie eine Vorraussage einloggen. Dies zeigt an, dass Sie das Kreuz mit den Augen\n',...
+                'fixieren sollen. Bitte blinzeln Sie in diser Zeit auch nicht!\n\n',...
+                'Sollten Sie in der Zeit wegschauen oder Blinzeln erscheint eine Raute und Sie erhalten\n',...
+                'kein Geld für diesen Durchgang.\n'...
+                'Probieren Sie es einmal!'];
+        DrawFormattedText(p.ptb.w, text, 'center', round(p.ptb.rect(4)*.1), p.stim.white,[],[],[],2,[]);
+        vbl = Screen('Flip', p.ptb.w);
+        KbStrokeWait(p.ptb.device);
+        [TimeEndStim, p, abort, prediction] = PredictionTrial(p, GetSecs+1, 75, 2, 0.1, 95, 100);
+        [TimeEndStim, p, abort, prediction] = PredictionTrial(p, GetSecs+1, 70, 2, 0.1, prediction, 104);                    
+        text = ['Soweit alles klar?\n\n',...
+                'Ihr Bonus in diesem Block hängt davon ab, wie nah ihre Vorraussagen an der nächsten Zahl sind.\n',...
+                'Am Ende des Blocks wird angezeigt, wie viel Bonus Sie erspielt haben.\n\n',...
+                'PS: Die Zahlenreihe liegt immer zwischen 0 und 300!\n\n',...
+                'Dann legen wir nun los!'];
+        DrawFormattedText(p.ptb.w, text, 'center', round(p.ptb.rect(4)*.1), p.stim.white,[],[],[],2,[]);
+        vbl = Screen('Flip', p.ptb.w);
+        KbStrokeWait(p.ptb.device);
+  end
 
 
     function text = RewardText(reward, reward_rate, earned_money, total_money)
@@ -1929,7 +1986,7 @@ lasterr
         if ~small_window
             [p.ptb.w, p.ptb.rect]        = Screen('OpenWindow', p.ptb.screenNumber, [128, 128, 128]);
         else
-            [p.ptb.w, p.ptb.rect]        = Screen('OpenWindow', p.ptb.screenNumber, [128, 128, 128], [0, 0, 900, 700]);
+            [p.ptb.w, p.ptb.rect]        = Screen('OpenWindow', p.ptb.screenNumber, [128, 128, 128], [0, 0, 1300, 900]);
         end
 
         BackupCluts();
@@ -2410,8 +2467,12 @@ lasterr
                 Screen('TextFont', txt, 'Courier');
                 Screen('TextStyle', txt, 1);
                 hpos = p.ptb.rect(2) + (p.ptb.rect(4)-p.ptb.rect(2))/2 + 10;
+                vpos = p.ptb.rect(1) + (p.ptb.rect(3)-p.ptb.rect(1))/2 - 15;
                 %Screen('FillRect', txt , p.stim.bg, [] );
-                DrawFormattedText(txt, sprintf('%03d', ii), 'center', hpos, [255, 255, 255], [],[],[],2,[]);
+                num = sprintf('%03d', ii);
+                DrawFormattedText(txt, num(1), vpos-35, hpos, [255, 255, 255], [],[],[],2,[]);
+                DrawFormattedText(txt, num(2), vpos, hpos, [255, 255, 255], [],[],[],2,[]);
+                DrawFormattedText(txt, num(3), vpos+35, hpos, [255, 255, 255], [],[],[],2,[]);
                 imageArray= double(Screen('GetImage', txt));
 
                 b = double(mean(imageArray, 3)>128);

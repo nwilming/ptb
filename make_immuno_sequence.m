@@ -49,7 +49,9 @@ for s = 1:ns % Iterates over subjects
             blocks{block}.fmri = false; %#ok<AGROW>
             
         end
+        
         stimuli{s}{p} = blocks; %#ok<AGROW>
+        
     end
 end
 
