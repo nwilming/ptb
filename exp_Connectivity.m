@@ -9,9 +9,9 @@ elseif ~ (strcmp(experiment, 'connectivity') || strcmp(experiment, 'immuno'))
 end
 
 
-NoEyelink = 1; %is Eyelink wanted?
+NoEyelink = 0; %is Eyelink wanted?
 debug   = 0; %debug mode => 1: transparent window enabling viewing the background.
-small_window = 1; % Open a small window only
+small_window = 0; % Open a small window only
 
 %% >>>>> Set up a lot of stuff
 % Load stimulus sequence
@@ -1319,7 +1319,7 @@ lasterr
         error = false;
         while GetSecs() < (TimeFeedback+duration-p.ptb.slack)
             if ~NoEyelink && Eyelink('NewFloatSampleAvailable')
-                esample = Eyelink('NewestFloatSample');
+                esample = Eyelink('NewestFloatSample');                
                 x = esample.gx(eyeused);
                 y = esample.gy(eyeused);
                 distance = (((x-xc)^2 + (y-yc)^2)^.5)/p.display.ppd;
@@ -1668,7 +1668,10 @@ lasterr
     function vbl = explain_nassar_block(p)
         KbQueueStop(p.ptb.device);
         KbQueueRelease(p.ptb.device);
+        res = Eyelink('Openfile', 'nintro.edf'); %#ok<NASGU>
         p = InitEyeLink(p);
+        
+        Eyelink('StartRecording');
 
         Screen('FillRect',p.ptb.w,p.var.current_bg);
         vbl = Screen('Flip',p.ptb.w);
@@ -1713,6 +1716,7 @@ lasterr
         DrawFormattedText(p.ptb.w, text, 'center', round(p.ptb.rect(4)*.1), p.stim.white,[],[],[],2,[]);
         vbl = Screen('Flip', p.ptb.w);
         KbStrokeWait(p.ptb.device);
+        res = Eyelink('Openfile', p.edffile); %#ok<NASGU>
   end
 
 
@@ -1838,7 +1842,11 @@ lasterr
             p.display.resolution = [1920 1080];
             p.display.dimension = [52, 29.5];
             p.display.distance = [62, 59];
-            p.path.baselocation           = '/home/donnerlab/experiments/immuno/data';
+            if  strcmp(experiment, 'immuno')
+                p.path.baselocation           = '/home/donnerlab/experiments/immuno/immuno_data';
+            else
+                p.path.baselocation           = '/home/donnerlab/experiments/immuno/data';
+            end
         else           
             p.display.resolution = [1920 1080];
             p.display.dimension = [52, 29.5];
