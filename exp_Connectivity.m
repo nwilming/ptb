@@ -674,11 +674,13 @@ lasterr
 
         Log(p, GetSecs(), 'PRD_LOWER_BOUND', lower_bound, p.phase, p.block);
         Log(p, GetSecs(), 'PRD_UPPER_BOUND', upper_bound, p.phase, p.block);
-
+        start_block = GetSecs();
         for trial  = 1:size(p.sequence.stim, 2);
+            if GetSecs()-start_block > 600
+                break
+            end
             Log(p, GetSecs(), 'PRD_TRIAL', trial, p.phase, p.block);
             %Get the variables that Trial function needs.
-            stim_id         = p.sequence.stim(trial);
             ISI             = p.sequence.isi(trial);
             jitter          = p.sequence.jitter(trial);
             sample          = p.sequence.sample(trial);
@@ -690,12 +692,12 @@ lasterr
                 trial, size(p.sequence.stim, 2), round(sample), p.block);
 
             StartEyelinkRecording(trial, p.phase, 0, 0, 0, 0);
-            %type, p, TimeStimOnset, stim_id, sample, jitter
+                        
             [TimeEndStim, p, abort, prediction] = PredictionTrial(p, OnsetTime, sample, sample_duration, jitter, prediction, last_sample);
             last_sample = sample;
-
+            
             prediction_errors(trial) = abs(prediction-sample);
-            Log(p, vbl, 'PRD_ERROR', prediction_errors(trial), p.phase, p.block);
+            p = Log(p, vbl, 'PRD_ERRORAT', prediction_errors(trial), p.phase, p.block);
 
             [keycode, secs] = KbQueueDump(p); %this contains both the pulses and keypresses.
             if numel(keycode)
@@ -719,8 +721,12 @@ lasterr
                 sca
                 return
             end
+            
         end
-
+        lower_bound = mean(abs(diff(p.sequence.sample)));
+        upper_bound = mean(abs(p.sequence.sample(2:trial) - p.sequence.mu(1:trial-1)));
+        %prediction_errors = nan(size(p.sequence.stim(trial),2));
+        
         mean_prediction_error = nanmean(prediction_errors(:));
         fprintf('Mean prediction error: %2.1f\n', mean_prediction_error);
         fprintf('Lower bound: %3.2f, upper bound: %3.2f', lower_bound, upper_bound);
@@ -933,7 +939,7 @@ lasterr
         TimeFeedbackOffset = nan;
         TrialStart = GetSecs;
         p = Log(p,TrialStart, 'PRD_TRIAL_START', sample, p.phase, p.block);
-
+        Eyelink('Command', sprintf('record_status_message "SAMP: %i, PRED: %i"'), sample, old_prediction);
         [p, prediction_time, prediction, abort] = predict_prd_sample(p, old_prediction, last_sample);
         if abort
             return
@@ -1276,13 +1282,10 @@ lasterr
         draw_prd_background(p)
 
         if allow_blink>0 % Give time for blinks.
-            %Screen('FillRect',  p.ptb.w, [0, 55, 200], p.FixCross');%draw the prestimus cross atop
             draw_fix_bg(p, [0, 55, 200]);
             TimeBlinkOn  = Screen('Flip',p.ptb.w, allow_blink+2);      %<----- FLIP
             draw_fix_bg(p);
-            %Screen('FillRect',  p.ptb.w, [255, 255, 255], p.FixCross');%draw the prestimus cross atop
             draw_prd_background(p)
-
             TimeCrossOn  = Screen('Flip',p.ptb.w, TimeBlinkOn+1);      %<----- FLIP
         else
             %Screen('FillRect',  p.ptb.w, [255, 255, 255], p.FixCross');%draw the prestimus cross atop
@@ -1305,9 +1308,8 @@ lasterr
         draw_prd_sample(p, sample)
         error = false;
         TimeFeedback  = Screen('Flip',p.ptb.w, TimeFeedbackOnset+jitter, 0);      %<----- FLIP
-        Eyelink('message', sprintf('FEEDBACK %f', sample));
-        p = Log(p,TimeFeedback, 9, sample, p.phase, p.block);
-        MarkCED( p.com.lpt.address, 130+sample);
+        Eyelink('message', sprintf('PRD_SHOW_SAMPLE %f', sample));
+        p = Log(p, TimeFeedback, 'PRD_SHOW_SAMPLE', sample, p.phase, p.block);
 
         draw_prd_background(p)
         draw_fix_bg_angled(p, 45);
@@ -1323,16 +1325,16 @@ lasterr
                 x = esample.gx(eyeused);
                 y = esample.gy(eyeused);
                 distance = (((x-xc)^2 + (y-yc)^2)^.5)/p.display.ppd;
-                if distance > 1.5
+                if distance > 2.5
                     error = true;
                 end
 
             end
         end
-        TimeFeedbackOffset = Screen('Flip',p.ptb.w,TimeFeedback+duration-p.ptb.slack/2, 0);     %<----- FLIP
-        Eyelink('message', 'FEEDBACKOFF');
-        p = Log(p,TimeFeedbackOffset, 10, 0, p.phase, p.block);
-        MarkCED( p.com.lpt.address, 140);
+        TimeFeedbackOffset = Screen('Flip',p.ptb.w,TimeFeedback+duration-p.ptb.slack/2, 0);     %<----- FLIP        
+        Eyelink('message', sprintf('PRD_SHOW_FIXERR %s', error));
+        p = Log(p, TimeFeedbackOffset, 'PRD_SHOW_FIXERR', error, p.phase, p.block);
+        
 
         if error
             draw_prd_background(p);
@@ -1344,6 +1346,8 @@ lasterr
             draw_prd_sample(p, sample)
             TimeErrorOffset = Screen('Flip',p.ptb.w, TimeErrorOnset+1);     %<----- FLIP
         end
+        Eyelink('message', sprintf('PRD_SHOW_OFF %s', error));
+        p = Log(p, GetSecs(), 'PRD_SHOW_OFF', error, p.phase, p.block);
     end
 
 
@@ -1361,7 +1365,7 @@ lasterr
                 if any(pulses);
                     p = Log(p,secs(pulses), 0, keycode(pulses), p.phase, p.block);
                 else
-                    Log(p, secs(iii), 'NASSAR_PRD_BEFORE_RESP', keycode(iii), p.phase, p.block);
+                    p = Log(p, secs(iii), 'NASSAR_PRD_BEFORE_RESP', keycode(iii), p.phase, p.block);
                 end
             end
         end
@@ -1372,13 +1376,10 @@ lasterr
         draw_prd_sample(p, old_prediction);
         draw_fix_bg_angled(p, 0);
         TimeStimOnset  = Screen('Flip',p.ptb.w);  %<----- FLIP
-        Eyelink('Message', 'StimOnset');
-        Eyelink('Message', 'SYNCTIME');
-        MarkCED( p.com.lpt.address, 4);
-        p = Log(p, GetSecs, 'PRD_PREDICT_SAMPLE_ON', nan, p.phase, p.block);
-        p = Log(p,TimeStimOnset, 5, nan, p.phase, p.block);
-        Eyelink('Message', 'StimOff');
-        MarkCED( p.com.lpt.address, 5);
+        Eyelink('Message', 'PRD_PREDICT_SAMPLE_ON');                
+        p = Log(p, TimeStimOnset, 'PRD_PREDICT_SAMPLE_ON', sample, p.phase, p.block);
+        
+        
 
         % Now do prediction.
         % How do the controls work? Let's treat this thing as if
@@ -1417,6 +1418,10 @@ lasterr
                                     modifier = 0;
                                 end
                             case {'space'}
+                                p = Log(p, GetSecs, 'PRD_PRED', prediction, p.phase, p.block);
+                                p = Log(p, GetSecs, 'PRD_ERR', sample-prediction, p.phase, p.block);
+                                Eyelink('message', sprintf('PRD_PRED %i', prediction));                                
+                                Eyelink('message', sprintf('PRD_ERR %f', sample-prediction));                                
                                 break
                             case p.keys.pulse
                                 p = Log(p,RT, 0, NaN, p.phase, p.block);
@@ -1444,11 +1449,12 @@ lasterr
         %lastflip  = Screen('Flip',p.ptb.w);
         % Now show prediction error
         error = sample-prediction;
+        
         TimeFeedbackOffset = update;
 
-        Eyelink('message', 'PREDICTION');
-        p = Log(p,TimeFeedbackOffset, 10, 0, p.phase, p.block);
-        MarkCED( p.com.lpt.address, 140);
+        
+        
+        
     end
 
 
