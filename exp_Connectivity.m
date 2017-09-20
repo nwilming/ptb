@@ -945,7 +945,7 @@ lasterr
             return
         end
 
-        [TimeFeedbackOffset] = show_prd_sample(p, jitter, sample_duration, sample, prediction);
+        [TimeFeedbackOffset, p] = show_prd_sample(p, jitter, sample_duration, sample, prediction);
 
         p.prev_sample = sample;
     end
@@ -1298,7 +1298,7 @@ lasterr
     end
 
 
-    function [TimeFeedbackOffset] = show_prd_sample(p, jitter, duration, sample, prediction)
+    function [TimeFeedbackOffset, p] = show_prd_sample(p, jitter, duration, sample, prediction)
         draw_prd_background(p)
         draw_prd_sample(p, prediction)
         draw_fix_bg_angled(p, 45);
