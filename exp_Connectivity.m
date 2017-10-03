@@ -229,6 +229,7 @@ Screen('TextStyle', p.ptb.w, 1);
             all_rewards.weight = 0.6;
             if blocks_completed > 0
                 p = TakeABreak(p);
+                calibrated = false;
             end
             KbQueueStop(p.ptb.device);
             KbQueueRelease(p.ptb.device);
@@ -241,7 +242,7 @@ Screen('TextStyle', p.ptb.w, 1);
                 explain_nassar_block(p)                
             end
             
-            [p, abort] = NassarPredictionBlock(p);
+            %[p, abort] = NassarPredictionBlock(p);
         end
 
         blocks_completed = blocks_completed+1;
